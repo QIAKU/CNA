@@ -196,6 +196,9 @@ while True:
 
       # Save origin server response in the cache file
       # ~~~~ INSERT CODE ~~~~
+      # Write the response content obtained from the source server into the cache file
+      # so that it can be directly read the next time the request is made
+      cacheFile.write(response)
       # ~~~~ END CODE INSERT ~~~~
       cacheFile.close()
       print ('cache file closed')
