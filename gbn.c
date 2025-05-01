@@ -61,6 +61,14 @@ static int windowfirst, windowlast;    /* array indexes of the first/last packet
 static int windowcount;                /* the number of packets currently awaiting an ACK */
 static int A_nextseqnum;               /* the next sequence number to be used by the sender */
 
+
+static int acked[SEQSPACE];    /* Marks whether each packet has received ACK*/
+static float timers[SEQSPACE];  /* The timer start time for each packet*/
+static bool timer_active[SEQSPACE]; /* Mark whether the timer of each package is activated*/
+static float current_time=0.0; /* Simulation time*/
+
+
+
 /* called from layer 5 (application layer), passed the message to be sent to other side */
 void A_output(struct msg message)
 {
