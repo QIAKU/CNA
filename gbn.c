@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include "emulator.h"
 #include "gbn.h"
+#include <string.h>
+
 
 /* ******************************************************************
    Go Back N protocol.  Adapted from J.F.Kurose
@@ -71,46 +73,35 @@ static float current_time=0.0; /* Simulation time*/
 
 /* called from layer 5 (application layer), passed the message to be sent to other side */
 void A_output(struct msg message)
-{
-  struct pkt sendpkt;
-  int i;
-
-  /* if not blocked waiting on ACK */
-  if ( windowcount < WINDOWSIZE) {
-    if (TRACE > 1)
-      printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
-
-    /* create packet */
-    sendpkt.seqnum = A_nextseqnum;
-    sendpkt.acknum = NOTINUSE;
-    for ( i=0; i<20 ; i++ ) 
-      sendpkt.payload[i] = message.data[i];
-    sendpkt.checksum = ComputeChecksum(sendpkt); 
-
-    /* put packet in window buffer */
-    /* windowlast will always be 0 for alternating bit; but not for GoBackN */
-    windowlast = (windowlast + 1) % WINDOWSIZE; 
-    buffer[windowlast] = sendpkt;
-    windowcount++;
-
-    /* send out packet */
-    if (TRACE > 0)
-      printf("Sending packet %d to layer 3\n", sendpkt.seqnum);
-    tolayer3 (A, sendpkt);
-
-    /* start timer if first packet in window */
-    if (windowcount == 1)
-      starttimer(A,RTT);
-
-    /* get next sequence number, wrap back to 0 */
-    A_nextseqnum = (A_nextseqnum + 1) % SEQSPACE;  
+{ 
+  /*If the current window is full, no new packets can be sent.*/
+  if(windowcount>= WINDOWSIZE){
+    if(TRACE >0){
+      printf("----A: Window full. Can not send message.\n");
+      return;
+    };
   }
-  /* if blocked,  window is full */
-  else {
-    if (TRACE > 0)
-      printf("----A: New message arrives, send window is full\n");
-    window_full++;
-  }
+
+  /*The current serial number to be used*/
+  int seq= A_nextseqnum;
+
+  /*Construct a data packet*/
+  struct pkt packet;  /*Set serial number*/ 
+  packet.acknum =0;  /* ACK field is set to 0*/
+  memcpy(packet.payload, message.data, sizeof(message.data));  /* Copy upper layer data*/
+  packet.checksum = ComputeChecksum(packet); /* Calculate checksum*/
+
+  buffer[seq] =packet;  /* Save this packet to the send buffer*/
+  acked[seq] =0;   /* The packet has not received ACK yet and is marked as unconfirmed.*/
+  timer_active[seq]=true;  /* Start the timer marker for this packet */
+  timers[seq]= current_time;  /* Record the simulator time when the package starts the timer*/
+
+  tolayer3(A, packet);   /* Sending the packet to the network layer*/
+  if (TRACE > 0)
+        printf("----A: Sent packet %d\n", seq);
+  
+  A_nextseqnum = (A_nextseqnum + 1) % SEQSPACE;  /* Update the next available serial number*/
+  windowcount++;   /* The number of packets to be confirmed in the current window +1*/
 }
 
 
