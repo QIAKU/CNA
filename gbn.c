@@ -110,55 +110,68 @@ void A_output(struct msg message)
 */
 void A_input(struct pkt packet)
 {
-  int ackcount = 0;
-  int i;
-
-  /* if received ACK is not corrupted */ 
-  if (!IsCorrupted(packet)) {
-    if (TRACE > 0)
-      printf("----A: uncorrupted ACK %d is received\n",packet.acknum);
-    total_ACKs_received++;
-
-    /* check if new ACK or duplicate */
-    if (windowcount != 0) {
-          int seqfirst = buffer[windowfirst].seqnum;
-          int seqlast = buffer[windowlast].seqnum;
-          /* check case when seqnum has and hasn't wrapped */
-          if (((seqfirst <= seqlast) && (packet.acknum >= seqfirst && packet.acknum <= seqlast)) ||
-              ((seqfirst > seqlast) && (packet.acknum >= seqfirst || packet.acknum <= seqlast))) {
-
-            /* packet is a new ACK */
-            if (TRACE > 0)
-              printf("----A: ACK %d is not a duplicate\n",packet.acknum);
-            new_ACKs++;
-
-            /* cumulative acknowledgement - determine how many packets are ACKed */
-            if (packet.acknum >= seqfirst)
-              ackcount = packet.acknum + 1 - seqfirst;
-            else
-              ackcount = SEQSPACE - seqfirst + packet.acknum;
-
-	    /* slide window by the number of packets ACKed */
-            windowfirst = (windowfirst + ackcount) % WINDOWSIZE;
-
-            /* delete the acked packets from window buffer */
-            for (i=0; i<ackcount; i++)
-              windowcount--;
-
-	    /* start timer again if there are still more unacked packets in window */
-            stoptimer(A);
-            if (windowcount > 0)
-              starttimer(A, RTT);
-
-          }
-        }
-        else
-          if (TRACE > 0)
-        printf ("----A: duplicate ACK received, do nothing!\n");
+  /* If the received ACK is corrupted, it is ignored */
+  if(IsCorrupted(packet)){
+    if(TRACE>0){
+      printf("----A: Corrupted ACK %d received, ignored.\n", packet.acknum);
+      return;
+    }
   }
-  else 
-    if (TRACE > 0)
-      printf ("----A: corrupted ACK is received, do nothing!\n");
+
+  /* Get the sequence number corresponding to the ACK */
+  int acknum =packet.acknum;
+
+  /* If this ACK is received for the first time */
+  if(!acked[acknum]){
+    acked[acknum]=1;  /* Mark the serial number as confirmed */
+    timer_active[acknum]=false; /* Stop the timer tag corresponding to the packet */
+
+    if(TRACE>0){
+      printf("----A: ACK %d marked as received\n", acknum); /*If TRACE mode is enabled, print the sequence number of the successfully received ACK for debugging*/
+    }
+
+    /*Slide the window to the right - starting from the left, continuously release confirmed packets*/
+    while (acked[windowfirst])
+    {
+      acked[windowfirst]=0; /*Reset confirmation status*/
+      timer_active[windowfirst]=false; /*reset timing mark*/
+
+      if(TRACE > 0){
+        printf("----A: Sliding window, freeing packet %d\n", windowfirst); 
+      }
+
+      windowfirst =(windowfirst+1)%SEQSPACE; /*Slide window right*/
+      windowcount--; /*A packet has been acknowledged, and the window count is reduced by 1*/
+    }
+    
+    /* If there are still packets that have not been confirmed, restart the unique timer, otherwise stop */
+    stoptimer(A);
+    /*If there are still unconfirmed packets in the window, it means there are still tasks waiting for ACK*/
+    if(windowcount>0){
+      /*Restart the timer and continue monitoring the next unconfirmed packet*/
+      starttimer(A,RTT);
+      /*Debug information: Timer restart after ACK*/
+      if(TRACE > 0){
+        printf("----A: Timer restarted after ACK\n");
+      }else{
+        /*If all packets in the window have been confirmed, the timer is no longer needed*/
+        if(TRACE>0){
+          printf("----A: All packets acknowledged, timer stopped\n");
+        }
+      }
+    }
+    else{
+      /*If a duplicate ACK is received (the ACK has already been processed), it is ignored*/
+      if(TRACE>0){
+        printf("----A: Duplicate ACK %d received, ignored\n", acknum);
+      }
+    }
+  }
+
+
+
+
+
 }
 
 /* called when A's timer goes off */
