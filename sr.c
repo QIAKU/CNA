@@ -74,6 +74,8 @@ static float current_time=0.0; /* Simulation time*/
 /* called from layer 5 (application layer), passed the message to be sent to other side */
 void A_output(struct msg message)
 { 
+  /*Get the current simulation time to determine whether the timer has timed out*/
+  current_time = get_sim_time(); 
   /*If the current window is full, no new packets can be sent.*/
   if(windowcount>= WINDOWSIZE){
     if(TRACE >0){
@@ -111,6 +113,9 @@ void A_output(struct msg message)
 */
 void A_input(struct pkt packet)
 {
+  /*Get the current simulation time to determine whether the timer has timed out*/
+  current_time = get_sim_time();
+  
   /* If the received ACK is corrupted, it is ignored */
   if(IsCorrupted(packet)){
     if(TRACE>0){
@@ -178,9 +183,13 @@ void A_input(struct pkt packet)
 /* called when A's timer goes off */
 void A_timerinterrupt(void)
 {
+
   int i;
   int oldest_index=-1; /*Records the index of the earliest packet that started the timer but did not receive an ACK*/
   float oldest_time=1e9;/*Used to find the earliest time to start the timer, initially set to a large value*/
+  
+  /*Get the current simulation time to determine whether the timer has timed out*/
+  current_time = get_sim_time();
 
   /*Traverse the entire sequence number space, check which packets have timed out, and retransmit them one by one*/
   for (i=0; i<SEQSPACE; i++) {
@@ -210,8 +219,6 @@ void A_timerinterrupt(void)
     /*Restart the only global timer*/
     starttimer(A, RTT);
   }
-
-
 }       
 
 
