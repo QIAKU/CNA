@@ -74,10 +74,6 @@ static float current_time=0.0; /* Simulation time*/
 /* called from layer 5 (application layer), passed the message to be sent to other side */
 void A_output(struct msg message)
 { 
-  /*Get the current simulation time to determine whether the timer has timed out*/
-  current_time = get_sim_time(); 
-
-  
   /*If the current window is full, no new packets can be sent.*/
   if(windowcount>= WINDOWSIZE){
     if(TRACE >0){
@@ -115,8 +111,6 @@ void A_output(struct msg message)
 */
 void A_input(struct pkt packet)
 {
-  /*Get the current simulation time to determine whether the timer has timed out*/
-  current_time = get_sim_time();
   
   /* If the received ACK is corrupted, it is ignored */
   if(IsCorrupted(packet)){
@@ -138,8 +132,7 @@ void A_input(struct pkt packet)
       printf("----A: ACK %d marked as received\n", acknum); /*If TRACE mode is enabled, print the sequence number of the successfully received ACK for debugging*/
     }
 
-    /*Only slide windowfirst forward one-by-one if it's been ACKed*/
-    if(acked[windowfirst])
+    while(acked[windowfirst])
     {
       acked[windowfirst]=0; /*Reset confirmation status*/
       timer_active[windowfirst]=false; /*reset timing mark*/
@@ -189,9 +182,6 @@ void A_timerinterrupt(void)
   int i;
   int oldest_index=-1; /*Records the index of the earliest packet that started the timer but did not receive an ACK*/
   float oldest_time=1e9;/*Used to find the earliest time to start the timer, initially set to a large value*/
-  
-  /*Get the current simulation time to determine whether the timer has timed out*/
-  current_time = get_sim_time();
 
   /*Traverse the entire sequence number space, check which packets have timed out, and retransmit them one by one*/
   for (i=0; i<SEQSPACE; i++) {
@@ -205,6 +195,8 @@ void A_timerinterrupt(void)
       timers[i] = current_time; /*Reset the timer start time for this packet*/
   }
   }
+  stoptimer(A);
+  starttimer(A, RTT);
 
 }       
 
@@ -222,6 +214,11 @@ void A_init(void)
 		     so initially this is set to -1
 		   */
   windowcount = 0;
+  for (int i = 0; i < SEQSPACE; i++) {
+    acked[i] = 0;
+    timer_active[i] = false;
+}
+
 }
 
 
@@ -259,11 +256,8 @@ void B_input(struct pkt packet)
         ackpkt.payload[i] = '0';
     ackpkt.checksum = ComputeChecksum(ackpkt);/*Calculate checksum*/
     tolayer3(B, ackpkt); /*Send ACK back to sender A*/
-
-
-    /*Print ACK send information*/
     if (TRACE > 0){
-        printf("----B: ACK %d sent\n", seq);}
+      printf("----B: ACK %d sent\n", seq);}
 
     /*If the expected packets are received, they are delivered one by one*/
     while (B_received[expectedseqnum]) {
@@ -286,13 +280,17 @@ void B_input(struct pkt packet)
 
     /*Send the ACK*/
     tolayer3(B, ackpkt);
+    if (TRACE > 0){
+      printf("----B: ACK %d sent (re-sent for corrupted packet)\n", ackpkt.acknum);
   }
+ 
+  
+}
 }
 
 /* the following routine will be called once (only) before any other */
 /* entity B routines are called. You can use it to do any initialization */
-void B_init(void)
-{
+void B_init(void){
   expectedseqnum = 0; /*Initialize the expected received sequence number to 0*/
     /*Initialize the receive status array, indicating that all packets with sequence numbers have not been received*/
     for (int i = 0; i < SEQSPACE; i++) {
