@@ -87,6 +87,7 @@ void A_output(struct msg message)
 
   /*Construct a data packet*/
   struct pkt packet;  /*Set serial number*/ 
+  packet.seqnum = seq; /*Set the sequence number of the data packet, which is used by the receiver to determine whether it is received in order*/
   packet.acknum =0;  /* ACK field is set to 0*/
   memcpy(packet.payload, message.data, sizeof(message.data));  /* Copy upper layer data*/
   packet.checksum = ComputeChecksum(packet); /* Calculate checksum*/
