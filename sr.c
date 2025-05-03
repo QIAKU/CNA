@@ -76,6 +76,8 @@ void A_output(struct msg message)
 { 
   /*Get the current simulation time to determine whether the timer has timed out*/
   current_time = get_sim_time(); 
+
+  
   /*If the current window is full, no new packets can be sent.*/
   if(windowcount>= WINDOWSIZE){
     if(TRACE >0){
@@ -136,8 +138,8 @@ void A_input(struct pkt packet)
       printf("----A: ACK %d marked as received\n", acknum); /*If TRACE mode is enabled, print the sequence number of the successfully received ACK for debugging*/
     }
 
-    /*Slide the window to the right - starting from the left, continuously release confirmed packets*/
-    while (acked[windowfirst])
+    /*Only slide windowfirst forward one-by-one if it's been ACKed*/
+    if(acked[windowfirst])
     {
       acked[windowfirst]=0; /*Reset confirmation status*/
       timer_active[windowfirst]=false; /*reset timing mark*/
