@@ -206,21 +206,6 @@ void A_timerinterrupt(void)
   }
   }
 
-  /*If a timeout packet is found*/
-  if (oldest_index != -1) {
-    /*Retransmit the timed-out packet*/
-    tolayer3(A, buffer[oldest_index]);
-
-    /*If TRACE debugging mode is enabled, retransmission information is output*/
-    if (TRACE > 0)
-        printf("----A: Timeout! Resending packet %d\n", oldest_index);
-
-    /*Update the timer start time of this package to the current simulation time*/
-    timers[oldest_index] = current_time;
-
-    /*Restart the only global timer*/
-    starttimer(A, RTT);
-  }
 }       
 
 
