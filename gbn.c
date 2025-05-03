@@ -179,19 +179,34 @@ void A_input(struct pkt packet)
 void A_timerinterrupt(void)
 {
   int i;
+  int oldest_index=-1; /*Records the index of the earliest packet that started the timer but did not receive an ACK*/
+  float oldest_time=1e9;/*Used to find the earliest time to start the timer, initially set to a large value*/
 
-  if (TRACE > 0)
-    printf("----A: time out,resend packets!\n");
-
-  for(i=0; i<windowcount; i++) {
-
-    if (TRACE > 0)
-      printf ("---A: resending packet %d\n", (buffer[(windowfirst+i) % WINDOWSIZE]).seqnum);
-
-    tolayer3(A,buffer[(windowfirst+i) % WINDOWSIZE]);
-    packets_resent++;
-    if (i==0) starttimer(A,RTT);
+  /*Traverse all packets in the sequence number space and find the earliest packet that started the timer but has not been confirmed*/
+  for (i=0; i<SEQSPACE; i++) {
+    if (timer_active[i] && timers[i] < oldest_time) {
+        oldest_time = timers[i]; /*Update the earliest timer time*/
+        oldest_index = i; /*Record the index of the package*/
+    }
   }
+
+  /*If a timeout packet is found*/
+  if (oldest_index != -1) {
+    /*Retransmit the timed-out packet*/
+    tolayer3(A, buffer[oldest_index]);
+
+    /*If TRACE debugging mode is enabled, retransmission information is output*/
+    if (TRACE > 0)
+        printf("----A: Timeout! Resending packet %d\n", oldest_index);
+
+    /*Update the timer start time of this package to the current simulation time*/
+    timers[oldest_index] = current_time;
+
+    /*Restart the only global timer*/
+    starttimer(A, RTT);
+  }
+
+
 }       
 
 
