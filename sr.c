@@ -76,7 +76,7 @@ void A_output(struct msg message)
     if(TRACE >0){
       printf("----A: New message arrives, send window is full\n");
     };
-    window_full++; /**/
+    window_full++; /*Add statistics when the window is full*/
     return;
   }
   
@@ -126,10 +126,11 @@ void A_input(struct pkt packet)
 
   if (TRACE > 0)
     printf("----A: uncorrupted ACK %d is received\n", acknum);
+  total_ACKs_received++;  /*Count the number of all non-damaged ACKs received by end A*/
 
   /* If this ACK is received for the first time */
   if(!acked[acknum]){
-
+    new_ACKs++;  /*When a new and non-duplicate ACK is received, count the number of new ACKs*/
     if (TRACE > 0)
     printf("----A: ACK %d is not a duplicate\n", acknum);
     acked[acknum]=1;  /* Mark the serial number as confirmed */
@@ -168,6 +169,7 @@ void A_timerinterrupt(void)
       if (TRACE > 0){
       printf("---A: resending packet %d\n", seq);}
       tolayer3(A, buffer[seq]);
+      packets_resent++;  /*When A retransmits a packet due to timeout, count the number of retransmissions*/
       stoptimer(A);
       starttimer(A, RTT);
     }
@@ -222,6 +224,7 @@ void B_input(struct pkt packet)
         B_buffer[seq] = packet;  /*Store in buffer*/
         B_received[seq] = true; /*Mark the serial number received*/
     }
+    packets_received++;  /*Count the number of correct data packets successfully received by end B*/
 
     /*Send ACK, confirm receipt of the sequence number*/
     ackpkt.acknum = seq;}
