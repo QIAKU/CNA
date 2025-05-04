@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include "emulator.h"
 #include "sr.h"
-#include <string.h>
 
 
 /* ******************************************************************
@@ -26,7 +25,7 @@
 
 #define RTT  16.0       /* round trip time.  MUST BE SET TO 16.0 when submitting assignment */
 #define WINDOWSIZE 6    /* the maximum number of buffered unacked packet */
-#define SEQSPACE 7      /* the min sequence space for GBN must be at least windowsize + 1 */
+#define SEQSPACE 12      /* The SR protocol requires that the sequence number space be at least twice the window size */
 #define NOTINUSE (-1)   /* used to fill header fields that are not being used */
 
 /* generic procedure to compute the checksum of a packet.  Used by both sender and receiver  
@@ -120,8 +119,8 @@ void A_input(struct pkt packet)
   if(IsCorrupted(packet)){
     if(TRACE>0){
       printf("----A: corrupted ACK is received, do nothing!\n");
-      return;
     }
+    return;
   }
 
   if (TRACE > 0)
@@ -132,9 +131,10 @@ void A_input(struct pkt packet)
   if(!acked[acknum]){
     new_ACKs++;  /*When a new and non-duplicate ACK is received, count the number of new ACKs*/
     if (TRACE > 0)
-    printf("----A: ACK %d is not a duplicate\n", packet.acknum);
+     printf("----A: ACK %d is not a duplicate\n", packet.acknum);
     acked[acknum]=1;  /* Mark the serial number as confirmed */
 
+    /*Move the window's starting sequence number windowfirst to the right, skipping the confirmed packets*/
     while(acked[windowfirst])
     {
       windowfirst =(windowfirst+1)%SEQSPACE; /*Slide window right*/
@@ -170,7 +170,7 @@ void A_timerinterrupt(void)
       seq = (windowfirst + i) % SEQSPACE;
       if (!acked[seq]) {
         if (TRACE > 0)
-          printf("---A: resending packet %d\n", (buffer[(windowfirst+i) % WINDOWSIZE]).seqnum);
+          printf("---A: resending packet %d\n", (buffer[(windowfirst+i) % SEQSPACE]).seqnum);
         tolayer3(A, buffer[seq]);
         packets_resent++; /*When A retransmits a packet due to timeout, count the number of retransmissions*/
       }
@@ -218,6 +218,10 @@ void B_input(struct pkt packet)
   struct pkt ackpkt; /*Define a packet for sending ACK*/
   int i;
   int seq;
+  int seqfirst;
+  int seqlast;
+  bool inWindow;
+
   seq = packet.seqnum;/*The sequence number of the currently received data packet*/
 
   /*If the received packet is not corrupted*/
@@ -225,21 +229,43 @@ void B_input(struct pkt packet)
     /*Debug information: print received packets*/
     if (TRACE > 0){
       printf("----B: packet %d is correctly received, send ACK!\n", packet.seqnum);}
-
-    /*If the packet with this sequence number has not been received before, cache it*/
-    if (!B_received[seq]) {
-        B_buffer[seq] = packet;  /*Store in buffer*/
-        B_received[seq] = true; /*Mark the serial number received*/
+    
+    /*Determine whether the data packet with this sequence number is within the receiving window range*/
+    seqfirst=expectedseqnum;
+    seqlast=(expectedseqnum+WINDOWSIZE-1)%SEQSPACE;
+    
+    if(seqfirst<=seqlast){
+      /*Normal situation where sequence number space wrapping does not occur*/
+      inWindow=(seq>=seqfirst && seq<=seqlast);
+    }else{
+      /*expectedseqnum + window size exceeds the maximum sequence number*/
+      inWindow=(seq>=seqfirst || seq<=seqlast);
     }
-    packets_received++;  /*Count the number of correct data packets successfully received by end B*/
 
-    /*Send ACK, confirm receipt of the sequence number*/
-    ackpkt.acknum = seq;}
-    else{
+    if(inWindow){
+      /*If the received packet is within the current receive window*/
+      if(!B_received[seq]){
+        /*If the data packet with this sequence number is received for the first time, the packet is cached*/
+        B_buffer[seq]=packet;/*Store in buffer*/
+        B_received[seq]=true;/*Mark the serial number received*/
+      }
+      packets_received++; /*Count the number of correct data packets successfully received by end B*/
+
+      /*The response sequence number is the sequence number of the data packet.*/
+      ackpkt.acknum=seq;
+    }else{
       if (TRACE > 0)
       printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
-    ackpkt.acknum = (expectedseqnum + SEQSPACE - 1) % SEQSPACE;
+      /*When a data packet is damaged, the ACK of the last packet received in sequence is still resent*/
+      ackpkt.acknum = (expectedseqnum + SEQSPACE - 1) % SEQSPACE;
     } 
+  }else{
+    if (TRACE > 0) {
+      printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");}
+    
+      /*When a data packet is damaged, the ACK of the last packet received in sequence is still resent*/
+    ackpkt.acknum = (expectedseqnum + SEQSPACE - 1) % SEQSPACE;
+    }
 
     ackpkt.seqnum = 0; /*The ACK packet itself does not carry valid data, so seqnum can be set to 0*/
     for (i = 0; i < 20; i++) /*Fill the ACK payload with the default value*/
