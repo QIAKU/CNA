@@ -74,6 +74,7 @@ static float current_time=0.0; /* Simulation time*/
 /* called from layer 5 (application layer), passed the message to be sent to other side */
 void A_output(struct msg message)
 { 
+  int seq;
   /*If the current window is full, no new packets can be sent.*/
   if(windowcount>= WINDOWSIZE){
     if(TRACE >0){
@@ -83,7 +84,7 @@ void A_output(struct msg message)
   }
 
   /*The current serial number to be used*/
-  int seq= A_nextseqnum;
+  seq= A_nextseqnum;
 
   /*Construct a data packet*/
   struct pkt packet;  /*Set serial number*/ 
@@ -98,9 +99,11 @@ void A_output(struct msg message)
   timers[seq]= current_time;  /* Record the simulator time when the package starts the timer*/
 
   tolayer3(A, packet);   /* Sending the packet to the network layer*/
-  if (TRACE > 0)
-        printf("----A: Sent packet %d\n", seq);
-  
+  printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
+  printf("Sending packet %d to layer 3\n", seq);
+  printf("          START TIMER: starting timer at %.6f\n", current_time);
+  starttimer(A, RTT); 
+
   A_nextseqnum = (A_nextseqnum + 1) % SEQSPACE;  /* Update the next available serial number*/
   windowcount++;   /* The number of packets to be confirmed in the current window +1*/
 }
@@ -111,7 +114,7 @@ void A_output(struct msg message)
 */
 void A_input(struct pkt packet)
 {
-  
+  int acknum;
   /* If the received ACK is corrupted, it is ignored */
   if(IsCorrupted(packet)){
     if(TRACE>0){
@@ -121,16 +124,15 @@ void A_input(struct pkt packet)
   }
 
   /* Get the sequence number corresponding to the ACK */
-  int acknum =packet.acknum;
+  acknum =packet.acknum;
 
   /* If this ACK is received for the first time */
   if(!acked[acknum]){
     acked[acknum]=1;  /* Mark the serial number as confirmed */
     timer_active[acknum]=false; /* Stop the timer tag corresponding to the packet */
 
-    if(TRACE>0){
-      printf("----A: ACK %d marked as received\n", acknum); /*If TRACE mode is enabled, print the sequence number of the successfully received ACK for debugging*/
-    }
+    printf("----A: uncorrupted ACK %d is received\n", acknum);
+    printf("----A: ACK %d is not a duplicate\n", acknum);
 
     while(acked[windowfirst])
     {
@@ -147,6 +149,8 @@ void A_input(struct pkt packet)
     
     /* If there are still packets that have not been confirmed, restart the unique timer, otherwise stop */
     stoptimer(A);
+    printf("          STOP TIMER: stopping timer at %.6f\n", current_time);
+
     /*If there are still unconfirmed packets in the window, it means there are still tasks waiting for ACK*/
     if(windowcount>0){
       /*Restart the timer and continue monitoring the next unconfirmed packet*/
@@ -178,11 +182,8 @@ void A_input(struct pkt packet)
 /* called when A's timer goes off */
 void A_timerinterrupt(void)
 {
-
   int i;
-  int oldest_index=-1; /*Records the index of the earliest packet that started the timer but did not receive an ACK*/
-  float oldest_time=1e9;/*Used to find the earliest time to start the timer, initially set to a large value*/
-
+  printf("          STOP TIMER: stopping timer at %.6f\n", current_time);
   /*Traverse the entire sequence number space, check which packets have timed out, and retransmit them one by one*/
   for (i=0; i<SEQSPACE; i++) {
     /*If the timer for the packet is still running and has timed out*/
@@ -197,6 +198,8 @@ void A_timerinterrupt(void)
   }
   stoptimer(A);
   starttimer(A, RTT);
+  printf("          START TIMER: starting timer at %.6f\n", current_time);
+
 
 }       
 
@@ -214,10 +217,6 @@ void A_init(void)
 		     so initially this is set to -1
 		   */
   windowcount = 0;
-  for (int i = 0; i < SEQSPACE; i++) {
-    acked[i] = 0;
-    timer_active[i] = false;
-}
 
 }
 
@@ -235,13 +234,14 @@ void B_input(struct pkt packet)
 {
   struct pkt ackpkt; /*Define a packet for sending ACK*/
   int i;
-  int seq = packet.seqnum;/*The sequence number of the currently received data packet*/
+  int seq;
+  seq = packet.seqnum;/*The sequence number of the currently received data packet*/
 
   /*If the received packet is not corrupted*/
   if (!IsCorrupted(packet)) {
     /*Debug information: print received packets*/
     if (TRACE > 0){
-        printf("----B: received packet %d\n", seq);}
+      printf("----B: packet %d is correctly received, send ACK!\n", seq);
 
     /*If the packet with this sequence number has not been received before, cache it*/
     if (!B_received[seq]) {
@@ -287,15 +287,13 @@ void B_input(struct pkt packet)
   
 }
 }
+}
 
 /* the following routine will be called once (only) before any other */
 /* entity B routines are called. You can use it to do any initialization */
 void B_init(void){
   expectedseqnum = 0; /*Initialize the expected received sequence number to 0*/
-    /*Initialize the receive status array, indicating that all packets with sequence numbers have not been received*/
-    for (int i = 0; i < SEQSPACE; i++) {
-        B_received[i] = false;
-    }
+
 }
 
 /******************************************************************************
