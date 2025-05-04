@@ -171,7 +171,10 @@ void A_input(struct pkt packet)
         printf("----A: Duplicate ACK %d received, ignored\n", acknum);
       }
     }
-  }
+  }else {
+    printf("----A: uncorrupted ACK %d is received\n", acknum);
+    printf("----A: ACK %d is a duplicate\n", acknum);
+}
 
 
 
