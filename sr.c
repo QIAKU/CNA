@@ -288,8 +288,9 @@ void B_input(struct pkt packet)
 void B_init(void){
   int i;
   expectedseqnum = 0; /*Initialize the expected received sequence number to 0*/
+  B_nextseqnum = 1;  /*Sequence number generation for ACK packets*/
   for (i = 0; i < SEQSPACE; i++) {
-    B_received[i] = false;
+    B_received[i] = false; 
     memset(&B_buffer[i], 0, sizeof(struct pkt));
 }
 }
