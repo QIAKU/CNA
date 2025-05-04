@@ -75,6 +75,8 @@ static float current_time=0.0; /* Simulation time*/
 void A_output(struct msg message)
 { 
   int seq;
+  current_time = get_sim_time();
+
   /*If the current window is full, no new packets can be sent.*/
   if(windowcount>= WINDOWSIZE){
     if(TRACE >0){
@@ -115,6 +117,8 @@ void A_output(struct msg message)
 void A_input(struct pkt packet)
 {
   int acknum;
+  current_time = get_sim_time();
+
   /* If the received ACK is corrupted, it is ignored */
   if(IsCorrupted(packet)){
     if(TRACE>0){
@@ -186,6 +190,7 @@ void A_input(struct pkt packet)
 void A_timerinterrupt(void)
 {
   int i;
+  current_time = get_sim_time();
   printf("          STOP TIMER: stopping timer at %.6f\n", current_time);
   /*Traverse the entire sequence number space, check which packets have timed out, and retransmit them one by one*/
   for (i=0; i<SEQSPACE; i++) {
@@ -239,6 +244,7 @@ void B_input(struct pkt packet)
   int i;
   int seq;
   seq = packet.seqnum;/*The sequence number of the currently received data packet*/
+  current_time = get_sim_time();
 
   /*If the received packet is not corrupted*/
   if (!IsCorrupted(packet)) {
@@ -295,8 +301,12 @@ void B_input(struct pkt packet)
 /* the following routine will be called once (only) before any other */
 /* entity B routines are called. You can use it to do any initialization */
 void B_init(void){
+  int i;
   expectedseqnum = 0; /*Initialize the expected received sequence number to 0*/
-
+  for (i = 0; i < SEQSPACE; i++) {
+    B_received[i] = false;
+    memset(&B_buffer[i], 0, sizeof(struct pkt));
+}
 }
 
 /******************************************************************************
