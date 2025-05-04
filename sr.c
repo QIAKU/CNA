@@ -148,9 +148,10 @@ void A_input(struct pkt packet)
       starttimer(A, RTT);
     } 
   }
-  else
+  else{
   if (TRACE > 0)
   printf ("----A: duplicate ACK received, do nothing!\n");
+  }
 }
 
 /* called when A's timer goes off */
@@ -254,8 +255,12 @@ void B_input(struct pkt packet)
     }else{
       if (TRACE > 0)
       printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
-      /*When a data packet is damaged, the ACK of the last packet received in sequence is still resent*/
-      ackpkt.acknum = (expectedseqnum + SEQSPACE - 1) % SEQSPACE;
+      if (seq < expectedseqnum) {
+        /*Duplicate packet already delivered */
+        ackpkt.acknum = seq;
+      } else {
+        ackpkt.acknum = (expectedseqnum + SEQSPACE - 1) % SEQSPACE;
+      }
     } 
   }else{
     if (TRACE > 0)
