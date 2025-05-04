@@ -133,8 +133,6 @@ void A_input(struct pkt packet)
 
     while(acked[windowfirst])
     {
-      acked[windowfirst]=0; /*Reset confirmation status*/
-
       if(TRACE > 0){
         printf("----A: Sliding window, freeing packet %d\n", windowfirst); 
       }
@@ -147,25 +145,17 @@ void A_input(struct pkt packet)
     stoptimer(A);
 
     /*If there are still unconfirmed packets in the window, it means there are still tasks waiting for ACK*/
-    if(windowcount>0){
-      /*Restart the timer and continue monitoring the next unconfirmed packet*/
-      starttimer(A,RTT);
-      /*Debug information: Timer restart after ACK*/
-      if(TRACE > 0){
+    if (windowcount > 0) {
+      starttimer(A, RTT);
+      if (TRACE > 0) {
         printf("----A: Timer restarted after ACK\n");
-      }else{
-        /*If all packets in the window have been confirmed, the timer is no longer needed*/
-        if(TRACE>0){
-          printf("----A: All packets acknowledged, timer stopped\n");
-        }
+      }
+    } else {
+      if (TRACE > 0) {
+        printf("----A: All packets acknowledged, timer stopped\n");
       }
     }
-    else{
-      /*If a duplicate ACK is received (the ACK has already been processed), it is ignored*/
-      if(TRACE>0){
-        printf("----A: Duplicate ACK %d received, ignored\n", acknum);
-      }
-    }
+
   }else {
     printf("----A: uncorrupted ACK %d is received\n", acknum);
     printf("----A: ACK %d is a duplicate\n", acknum);
@@ -216,6 +206,7 @@ void A_init(void)
   windowcount = 0;
   for (i = 0; i < SEQSPACE; i++) {
     acked[i] = 0;
+    memset(&buffer[i], 0, sizeof(struct pkt));
     }
 }
 
@@ -226,7 +217,7 @@ void A_init(void)
 static int expectedseqnum; /* the sequence number expected next by the receiver */
 static int B_nextseqnum;   /* the sequence number for the next packets sent by B */
 static struct pkt B_buffer[SEQSPACE]; /*Cache received packets*/
-static bool B_received[SEQSPACE]; /*Mark whether the serial number has been received*/
+static bool B_received[SEQSPACE]; /*Mark whether the serial number has been received*/ 
 
 /* called from layer 3, when a packet arrives for layer 4 at B*/
 void B_input(struct pkt packet)
