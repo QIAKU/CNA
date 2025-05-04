@@ -7,7 +7,7 @@
 
 
 /* ******************************************************************
-   Go Back N protocol.  Adapted from J.F.Kurose
+   Selective Repeat protocol.  Adapted from J.F.Kurose
    ALTERNATING BIT AND GO-BACK-N NETWORK EMULATOR: VERSION 1.2  
 
    Network properties:
@@ -65,11 +65,6 @@ static int A_nextseqnum;               /* the next sequence number to be used by
 
 
 static int acked[SEQSPACE];    /* Marks whether each packet has received ACK*/
-static float timers[SEQSPACE];  /* The timer start time for each packet*/
-static bool timer_active[SEQSPACE]; /* Mark whether the timer of each package is activated*/
-static float current_time=0.0; /* Simulation time*/
-
-
 
 /* called from layer 5 (application layer), passed the message to be sent to other side */
 void A_output(struct msg message)
@@ -95,14 +90,16 @@ void A_output(struct msg message)
 
   buffer[seq] =packet;  /* Save this packet to the send buffer*/
   acked[seq] =0;   /* The packet has not received ACK yet and is marked as unconfirmed.*/
-  timer_active[seq]=true;  /* Start the timer marker for this packet */
-  timers[seq]= current_time;  /* Record the simulator time when the package starts the timer*/
 
   tolayer3(A, packet);   /* Sending the packet to the network layer*/
   printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
   printf("Sending packet %d to layer 3\n", seq);
-  printf("          START TIMER: starting timer at %.6f\n", current_time);
-  starttimer(A, RTT); 
+  if (windowcount == 0) {
+    starttimer(A, RTT);
+    if (TRACE > 0) {
+      printf("----A: Timer started for base packet %d\n", windowfirst);
+    }
+  }
 
   A_nextseqnum = (A_nextseqnum + 1) % SEQSPACE;  /* Update the next available serial number*/
   windowcount++;   /* The number of packets to be confirmed in the current window +1*/
@@ -130,7 +127,6 @@ void A_input(struct pkt packet)
   /* If this ACK is received for the first time */
   if(!acked[acknum]){
     acked[acknum]=1;  /* Mark the serial number as confirmed */
-    timer_active[acknum]=false; /* Stop the timer tag corresponding to the packet */
 
     printf("----A: uncorrupted ACK %d is received\n", acknum);
     printf("----A: ACK %d is not a duplicate\n", acknum);
@@ -138,7 +134,6 @@ void A_input(struct pkt packet)
     while(acked[windowfirst])
     {
       acked[windowfirst]=0; /*Reset confirmation status*/
-      timer_active[windowfirst]=false; /*reset timing mark*/
 
       if(TRACE > 0){
         printf("----A: Sliding window, freeing packet %d\n", windowfirst); 
@@ -150,7 +145,6 @@ void A_input(struct pkt packet)
     
     /* If there are still packets that have not been confirmed, restart the unique timer, otherwise stop */
     stoptimer(A);
-    printf("          STOP TIMER: stopping timer at %.6f\n", current_time);
 
     /*If there are still unconfirmed packets in the window, it means there are still tasks waiting for ACK*/
     if(windowcount>0){
@@ -186,24 +180,22 @@ void A_input(struct pkt packet)
 /* called when A's timer goes off */
 void A_timerinterrupt(void)
 {
-  int i;
-  printf("          STOP TIMER: stopping timer at %.6f\n", current_time);
-  /*Traverse the entire sequence number space, check which packets have timed out, and retransmit them one by one*/
-  for (i=0; i<SEQSPACE; i++) {
-    /*If the timer for the packet is still running and has timed out*/
-    if (timer_active[i] && (current_time - timers[i] > RTT)) {
-      tolayer3(A, buffer[i]);/*Resend the timed-out packet*/
+    /*Only the first unacknowledged packet in the retransmission window*/ 
+    int seq = windowfirst;
 
-      /*If TRACE mode is enabled, debug information is output*/
-      if (TRACE > 0){
-        printf("----A: packet %d is timeout, resend it!\n", i);}
-      timers[i] = current_time; /*Reset the timer start time for this packet*/
-  }
-  }
-  stoptimer(A);
-  starttimer(A, RTT);
-  printf("          START TIMER: starting timer at %.6f\n", current_time);
-
+    if (!acked[seq]) {
+      tolayer3(A, buffer[seq]);
+      if (TRACE > 0) {
+        printf("----A: Timeout for packet %d, resend!\n", seq);
+      }
+    }
+  
+    /*Restart timer*/
+    stoptimer(A);
+    starttimer(A, RTT);
+    if (TRACE > 0) {
+      printf("----A: Timer restarted for packet %d\n", seq);
+    }
 
 }       
 
@@ -224,10 +216,7 @@ void A_init(void)
   windowcount = 0;
   for (i = 0; i < SEQSPACE; i++) {
     acked[i] = 0;
-    timers[i] = 0.0;
-    timer_active[i] = false;
     }
-  current_time = 0.0;
 }
 
 
