@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include "emulator.h"
 #include "sr.h"
+#include <string.h>
 
 
 /* ******************************************************************
