@@ -194,8 +194,8 @@ void A_timerinterrupt(void)
       tolayer3(A, buffer[i]);/*Resend the timed-out packet*/
 
       /*If TRACE mode is enabled, debug information is output*/
-      if (TRACE > 0)
-          printf("----A: Timeout! Resending packet %d\n", i);
+      if (TRACE > 0){
+        printf("----A: packet %d is timeout, resend it!\n", i);}
       timers[i] = current_time; /*Reset the timer start time for this packet*/
   }
   }
@@ -244,7 +244,7 @@ void B_input(struct pkt packet)
   if (!IsCorrupted(packet)) {
     /*Debug information: print received packets*/
     if (TRACE > 0){
-      printf("----B: packet %d is correctly received, send ACK!\n", seq);
+      printf("----B: packet %d is correctly received, send ACK!\n", seq);}
 
     /*If the packet with this sequence number has not been received before, cache it*/
     if (!B_received[seq]) {
@@ -290,7 +290,7 @@ void B_input(struct pkt packet)
   
 }
 }
-}
+
 
 /* the following routine will be called once (only) before any other */
 /* entity B routines are called. You can use it to do any initialization */
