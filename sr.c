@@ -96,7 +96,7 @@ void A_output(struct msg message)
   acked[seq] =0;   /* The packet has not received ACK yet and is marked as unconfirmed.*/
 
   if (TRACE > 0)
-  printf("Sending packet %d to layer 3\n", seq);
+  printf("Sending packet %d to layer 3\n", packet.seqnum);
 
   tolayer3(A, packet);   /* Sending the packet to the network layer*/
   
@@ -125,14 +125,14 @@ void A_input(struct pkt packet)
   }
 
   if (TRACE > 0)
-    printf("----A: uncorrupted ACK %d is received\n", acknum);
+    printf("----A: uncorrupted ACK %d is received\n", packet.acknum);
   total_ACKs_received++;  /*Count the number of all non-damaged ACKs received by end A*/
 
   /* If this ACK is received for the first time */
   if(!acked[acknum]){
     new_ACKs++;  /*When a new and non-duplicate ACK is received, count the number of new ACKs*/
     if (TRACE > 0)
-    printf("----A: ACK %d is not a duplicate\n", acknum);
+    printf("----A: ACK %d is not a duplicate\n", packet.acknum);
     acked[acknum]=1;  /* Mark the serial number as confirmed */
 
     while(acked[windowfirst])
@@ -160,19 +160,26 @@ void A_input(struct pkt packet)
 void A_timerinterrupt(void)
 {
     /*Only the first unacknowledged packet in the retransmission window*/ 
-    int seq = windowfirst;
+    int seq;
+    int i;
 
     if (TRACE > 0)
     printf("----A: time out,resend packets!\n");
 
-    if (!acked[seq]) {
-      if (TRACE > 0){
-      printf("---A: resending packet %d\n", seq);}
-      tolayer3(A, buffer[seq]);
-      packets_resent++;  /*When A retransmits a packet due to timeout, count the number of retransmissions*/
-      stoptimer(A);
+    for (i = 0; i < windowcount; i++) {
+      seq = (windowfirst + i) % SEQSPACE;
+      if (!acked[seq]) {
+        if (TRACE > 0)
+          printf("---A: resending packet %d\n", (buffer[(windowfirst+i) % WINDOWSIZE]).seqnum);
+        tolayer3(A, buffer[seq]);
+        packets_resent++; /*When A retransmits a packet due to timeout, count the number of retransmissions*/
+      }
+    }
+    stoptimer(A);
+    if(windowcount > 0){
       starttimer(A, RTT);
     }
+    
 }       
 
 
@@ -217,7 +224,7 @@ void B_input(struct pkt packet)
   if (!IsCorrupted(packet)) {
     /*Debug information: print received packets*/
     if (TRACE > 0){
-      printf("----B: packet %d is correctly received, send ACK!\n", seq);}
+      printf("----B: packet %d is correctly received, send ACK!\n", packet.seqnum);}
 
     /*If the packet with this sequence number has not been received before, cache it*/
     if (!B_received[seq]) {
