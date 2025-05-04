@@ -70,12 +70,11 @@ static int acked[SEQSPACE];    /* Marks whether each packet has received ACK*/
 void A_output(struct msg message)
 { 
   int seq;
-  struct pkt packet;  /*Set serial number*/ 
+  struct pkt sendpkt;  /*Set serial number*/ 
   /*If the current window is full, no new packets can be sent.*/
   if(windowcount>= WINDOWSIZE){
-    if(TRACE >0){
+    if (TRACE > 0)
       printf("----A: New message arrives, send window is full\n");
-    };
     window_full++; /*Add statistics when the window is full*/
     return;
   }
@@ -87,18 +86,18 @@ void A_output(struct msg message)
   seq= A_nextseqnum;
 
   /*Construct a data packet*/
-  packet.seqnum = seq; /*Set the sequence number of the data packet, which is used by the receiver to determine whether it is received in order*/
-  packet.acknum =0;  /* ACK field is set to 0*/
-  memcpy(packet.payload, message.data, sizeof(message.data));  /* Copy upper layer data*/
-  packet.checksum = ComputeChecksum(packet); /* Calculate checksum*/
+  sendpkt.seqnum = seq; /*Set the sequence number of the data packet, which is used by the receiver to determine whether it is received in order*/
+  sendpkt.acknum =0;  /* ACK field is set to 0*/
+  memcpy(sendpkt.payload, message.data, sizeof(message.data));  /* Copy upper layer data*/
+  sendpkt.checksum = ComputeChecksum(sendpkt); /* Calculate checksum*/
 
-  buffer[seq] =packet;  /* Save this packet to the send buffer*/
+  buffer[seq] =sendpkt;  /* Save this packet to the send buffer*/
   acked[seq] =0;   /* The packet has not received ACK yet and is marked as unconfirmed.*/
 
   if (TRACE > 0)
-  printf("Sending packet %d to layer 3\n", packet.seqnum);
+  printf("Sending packet %d to layer 3\n", sendpkt.seqnum);
 
-  tolayer3(A, packet);   /* Sending the packet to the network layer*/
+  tolayer3(A, sendpkt);   /* Sending the packet to the network layer*/
   
   if (windowcount == 0) {
     starttimer(A, RTT);
@@ -118,21 +117,20 @@ void A_input(struct pkt packet)
 
   /* If the received ACK is corrupted, it is ignored */
   if(IsCorrupted(packet)){
-    if(TRACE>0){
-      printf("----A: corrupted ACK is received, do nothing!\n");
-    }
+    if (TRACE > 0)
+      printf ("----A: corrupted ACK is received, do nothing!\n");
     return;
   }
 
   if (TRACE > 0)
-    printf("----A: uncorrupted ACK %d is received\n", packet.acknum);
+  printf("----A: uncorrupted ACK %d is received\n",packet.acknum);
   total_ACKs_received++;  /*Count the number of all non-damaged ACKs received by end A*/
 
   /* If this ACK is received for the first time */
   if(!acked[acknum]){
     new_ACKs++;  /*When a new and non-duplicate ACK is received, count the number of new ACKs*/
     if (TRACE > 0)
-     printf("----A: ACK %d is not a duplicate\n", packet.acknum);
+    printf("----A: ACK %d is not a duplicate\n",packet.acknum);
     acked[acknum]=1;  /* Mark the serial number as confirmed */
 
     /*Move the window's starting sequence number windowfirst to the right, skipping the confirmed packets*/
@@ -148,13 +146,11 @@ void A_input(struct pkt packet)
     /*If there are still unconfirmed packets in the window, it means there are still tasks waiting for ACK*/
     if (windowcount > 0) {
       starttimer(A, RTT);
-    } else {
-      if (TRACE > 0) {
-        printf("----A: duplicate ACK received, do nothing!\n");
-      }
-    }
-
+    } 
   }
+  else
+  if (TRACE > 0)
+  printf ("----A: duplicate ACK received, do nothing!\n");
 }
 
 /* called when A's timer goes off */
@@ -168,10 +164,11 @@ void A_timerinterrupt(void)
     printf("----A: time out,resend packets!\n");
 
     for (i = 0; i < windowcount; i++) {
+      if (TRACE > 0)
+      printf ("---A: resending packet %d\n", (buffer[(windowfirst+i) % WINDOWSIZE]).seqnum);
+      
       seq = (windowfirst + i) % SEQSPACE;
       if (!acked[seq]) {
-        if (TRACE > 0)
-          printf("---A: resending packet %d\n", (buffer[(windowfirst+i) % SEQSPACE]).seqnum);
         tolayer3(A, buffer[seq]);
         packets_resent++; /*When A retransmits a packet due to timeout, count the number of retransmissions*/
       }
@@ -227,9 +224,9 @@ void B_input(struct pkt packet)
 
   /*If the received packet is not corrupted*/
   if (!IsCorrupted(packet)) {
-    /*Debug information: print received packets*/
-    if (TRACE > 0){
-      printf("----B: packet %d is correctly received, send ACK!\n", packet.seqnum);}
+    
+    if (TRACE > 0)
+      printf("----B: packet %d is correctly received, send ACK!\n",packet.seqnum);
     
     /*Determine whether the data packet with this sequence number is within the receiving window range*/
     seqfirst=expectedseqnum;
@@ -261,9 +258,8 @@ void B_input(struct pkt packet)
       ackpkt.acknum = (expectedseqnum + SEQSPACE - 1) % SEQSPACE;
     } 
   }else{
-    if (TRACE > 0) {
-      printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");}
-    
+    if (TRACE > 0)
+      printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
       /*When a data packet is damaged, the ACK of the last packet received in sequence is still resent*/
     ackpkt.acknum = (expectedseqnum + SEQSPACE - 1) % SEQSPACE;
     }
