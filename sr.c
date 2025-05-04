@@ -218,6 +218,7 @@ void A_timerinterrupt(void)
 void A_init(void)
 {
   /* initialise A's window, buffer and sequence number */
+  int i;
   A_nextseqnum = 0;  /* A starts with seq num 0, do not change this */
   windowfirst = 0;
   windowlast = -1;   /* windowlast is where the last packet sent is stored.  
@@ -225,7 +226,12 @@ void A_init(void)
 		     so initially this is set to -1
 		   */
   windowcount = 0;
-
+  for (i = 0; i < SEQSPACE; i++) {
+    acked[i] = 0;
+    timers[i] = 0.0;
+    timer_active[i] = false;
+    }
+  current_time = 0.0;
 }
 
 
