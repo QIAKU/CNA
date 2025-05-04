@@ -70,13 +70,16 @@ static int acked[SEQSPACE];    /* Marks whether each packet has received ACK*/
 void A_output(struct msg message)
 { 
   int seq;
+  struct pkt packet;  /*Set serial number*/ 
   /*If the current window is full, no new packets can be sent.*/
   if(windowcount>= WINDOWSIZE){
     if(TRACE >0){
       printf("----A: New message arrives, send window is full\n");
-      return;
     };
+    window_full++; /**/
+    return;
   }
+  
 
   if (TRACE > 1)
   printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
@@ -84,7 +87,6 @@ void A_output(struct msg message)
   seq= A_nextseqnum;
 
   /*Construct a data packet*/
-  struct pkt packet;  /*Set serial number*/ 
   packet.seqnum = seq; /*Set the sequence number of the data packet, which is used by the receiver to determine whether it is received in order*/
   packet.acknum =0;  /* ACK field is set to 0*/
   memcpy(packet.payload, message.data, sizeof(message.data));  /* Copy upper layer data*/
@@ -112,7 +114,7 @@ void A_output(struct msg message)
 */
 void A_input(struct pkt packet)
 {
-  int acknum;
+  int acknum=packet.acknum;
 
   /* If the received ACK is corrupted, it is ignored */
   if(IsCorrupted(packet)){
@@ -124,9 +126,6 @@ void A_input(struct pkt packet)
 
   if (TRACE > 0)
     printf("----A: uncorrupted ACK %d is received\n", acknum);
-
-  /* Get the sequence number corresponding to the ACK */
-  acknum =packet.acknum;
 
   /* If this ACK is received for the first time */
   if(!acked[acknum]){
@@ -251,8 +250,9 @@ void B_input(struct pkt packet)
 /* the following routine will be called once (only) before any other */
 /* entity B routines are called. You can use it to do any initialization */
 void B_init(void){
+  int i;
   expectedseqnum = 0; /*Initialize the expected received sequence number to 0*/
-  for (int i = 0; i < SEQSPACE; i++) {
+  for (i = 0; i < SEQSPACE; i++) {
     B_received[i] = false;
     memset(&B_buffer[i], 0, sizeof(struct pkt));
 }
