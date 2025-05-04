@@ -164,11 +164,11 @@ void A_timerinterrupt(void)
     printf("----A: time out,resend packets!\n");
 
     for (i = 0; i < windowcount; i++) {
-      if (TRACE > 0)
-      printf ("---A: resending packet %d\n", (buffer[(windowfirst+i) % WINDOWSIZE]).seqnum);
-      
+
       seq = (windowfirst + i) % SEQSPACE;
       if (!acked[seq]) {
+        if (TRACE > 0)
+        printf ("---A: resending packet %d\n", (buffer[(windowfirst+i) % SEQSPACE]).seqnum);
         tolayer3(A, buffer[seq]);
         packets_resent++; /*When A retransmits a packet due to timeout, count the number of retransmissions*/
       }
